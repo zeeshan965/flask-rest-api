@@ -1,16 +1,29 @@
 from flask import Flask, jsonify, request
 from flask_marshmallow import Marshmallow
+from marshmallow import ValidationError
+from userSchema import FormSchema
 from flask_cors import CORS, cross_origin
 from models import db, Users
+from markupsafe import escape
+from flask import url_for
+import pprint
+from dotenv import load_dotenv
+import os
+from users.routes import users
 
+load_dotenv()
 app = Flask(__name__)
 
-app.config['SECRET_KEY'] = 'cairocoders-ednalan'
-# app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///flaskdb.db'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:root@localhost/flask-api'
+# Configuration options
+app.config['DEBUG'] = os.getenv('DEBUG')
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
+app.config['DATABASE_URL'] = os.getenv('DATABASE_URL')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('SQLALCHEMY_DATABASE_URI')
 
-SQLALCHEMY_TRACK_MODIFICATIONS = False
-SQLALCHEMY_ECHO = True
+SQLALCHEMY_TRACK_MODIFICATIONS = os.getenv('SQLALCHEMY_TRACK_MODIFICATIONS')
+SQLALCHEMY_ECHO = os.getenv('SQLALCHEMY_ECHO')
+
+app.register_blueprint(users)
 
 CORS(app, supports_credentials=True)
 
@@ -38,18 +51,24 @@ def hello_world():
 
 @app.route('/users', methods=['POST'])
 def store():
-    name = request.json['name']
-    email = request.json['email']
-    password = request.json['password']
+    try:
+        form_data = FormSchema().load(request.json)
+        return jsonify({'message': 'Form data is valid'})
+    except ValidationError as err:
+        return jsonify({'errors': err.messages}), 400
 
-    print(name)
-    print(email)
-    print(password)
 
-    users = Users(name=name, email=email, password=password)
-    db.session.add(users)
-    db.session.commit()
-    return user_schema.jsonify(users)
+# name = request.json['name']
+# email = request.json['email']
+# password = request.json['password']
+# print(name)
+# print(email)
+# print(password)
+#
+# users = Users(name=name, email=email, password=password)
+# db.session.add(users)
+# db.session.commit()
+# return user_schema.jsonify(users)
 
 
 @app.route('/users/<id>', methods=['GET'])
@@ -85,6 +104,58 @@ def delete(id):
     db.session.commit()
     return user_schema.jsonify(user)
 
+
+@app.route("/test/<name>")
+def hello(name):
+    return f"Hello, {name}!"
+
+
+@app.route('/user/<username>')
+def show_user_profile(username):
+    # show the user profile for that user
+    return f'User {escape(username)}'
+
+
+@app.route('/post/<int:post_id>')
+def show_post(post_id):
+    # show the post with the given id, the id is an integer
+    return f'Post {post_id}'
+
+
+@app.route('/path/<path:subpath>')
+def show_subpath(subpath):
+    # show the subpath after /path/
+    return f'Subpath {escape(subpath)}'
+
+
+@app.route('/user/<username>')
+def profile(username):
+    return f'{username}\'s profile'
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    print(request)
+    pprint.pprint(request.headers)
+    if request.method == 'POST':
+        return do_the_login()
+    else:
+        return show_the_login_form()
+
+
+def show_the_login_form():
+    return 'login form'
+
+
+def do_the_login():
+    return 'login implementation'
+
+
+with app.test_request_context():
+    print(url_for('index'))
+    print(url_for('login'))
+    print(url_for('login', next='/'))
+    print(url_for('profile', username='John Doe'))
 
 if __name__ == "__main__":
     app.run(debug=True)
